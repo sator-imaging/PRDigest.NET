@@ -52,3 +52,16 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# User-specific files
+.rsuser
+.suo
+.user
+.userosscache
+.sln.docstates
+
+# Benchmark Results
+BenchmarkDotNet.Artifacts
+
+# Visual Studio 20152017 cacheoptions directory
+.vs
