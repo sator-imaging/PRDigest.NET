@@ -1,8 +1,20 @@
 # PRDigest.NET
 
 Displays AI-summarized information of Pull Requests merged in [dotnet/runtime](https://github.com/dotnet/runtime).
-Uses Claude Haiku 4.5 for AI summarization.
 This is inspired by [YuheiNakasaka/rails-pr-digest](https://github.com/YuheiNakasaka/rails-pr-digest).
+
+## How it Works
+
+The application runs automatically via GitHub Actions every day at midnight (UTC). It:
+1. Collects Pull Requests merged in the previous day from dotnet/runtime
+2. Summarizes each PR using Claude API.
+3. Generates markdown summaries and saves them to the archives directory
+4. Converts all markdown files to HTML pages
+5. Deploys the generated HTML to GitHub Pages
+
+## AI Model
+
+Claude Haiku 4.5
 
 ## Development
 
