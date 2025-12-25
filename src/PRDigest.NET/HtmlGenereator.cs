@@ -268,14 +268,19 @@ internal static class HtmlGenereator
     }
     
     ul {
-      margin: 16px 0;
-      padding: 4px 4px;
+      margin: 0;
+      padding: 2px 2px;
       padding-left: 24px;
+    }
+
+    ul p{
+      margin: 0;
+      padding: 0;
     }
     
     li {
-      margin: 8px 0;
-      padding: 4px 4px;
+      margin: 0;
+      padding: 2px 2px;
       color: #374151;
     }
 
