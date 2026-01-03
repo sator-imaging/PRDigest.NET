@@ -9,14 +9,12 @@ internal static class HtmlGenereator
 {
     private static readonly StringComparer NumericOrderingComparer = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering);
 
-    public static string GenerateIndex(string archivesDir)
+    public static string GenerateIndex(string archivesDir, string outputsDir)
     {
         var comparer = NumericOrderingComparer;
 
-        var latestPullRequestInfo = "";
-
         var detailsBuilder = new DefaultInterpolatedStringHandler(0, 0);
-        foreach (var yearDirs in Directory.GetDirectories(archivesDir).OrderDescending(comparer))
+        foreach (var yearDirs in Directory.GetDirectories(outputsDir).OrderDescending(comparer))
         {
             var year = Path.GetFileName(yearDirs);
             foreach (var monthDirss in Directory.GetDirectories(yearDirs).OrderDescending(comparer))
@@ -24,26 +22,33 @@ internal static class HtmlGenereator
                 var month = Path.GetFileName(monthDirss);
                 detailsBuilder.AppendLiteral($"<details>{Environment.NewLine}");
                 detailsBuilder.AppendLiteral($"   <summary>{year}年{month}月</summary>{Environment.NewLine}");
-                detailsBuilder.AppendLiteral($"   <ul>{Environment.NewLine}");
+                detailsBuilder.AppendLiteral($"   <ul class=\"daylist\">{Environment.NewLine}");
 
-                foreach (var dayFiles in Directory.GetFiles(monthDirss, "*.html").OrderDescending(comparer))
+                foreach (var htmlPath in Directory.GetFiles(monthDirss, "*.html").Order(comparer))
                 {
-
-                    if (latestPullRequestInfo.Length == 0)
-                    {
-                        latestPullRequestInfo = $"""
-                            <h2>最新 PR</h2>
-                            <p><a href="./{year}/{month}/{Path.GetFileName(dayFiles)}">{year}年{month}月{Path.GetFileNameWithoutExtension(dayFiles)}日</a></p>
-                            <h2>過去の月別ダイジェスト</h2>
-                            """;
-                    }
-
-                    detailsBuilder.AppendLiteral($"     <li><a href=\"./{year}/{month}/{Path.GetFileName(dayFiles)}\">{year}年{month}月{Path.GetFileNameWithoutExtension(dayFiles)}日</a> </li>{Environment.NewLine}");
+                    detailsBuilder.AppendLiteral($"     <li class=\"dayitem\"><a href=\"./{year}/{month}/{Path.GetFileName(htmlPath)}\">{year}年{month}月{Path.GetFileNameWithoutExtension(htmlPath)}日</a> </li>{Environment.NewLine}");
                 }
 
                 detailsBuilder.AppendLiteral($"   </ul>{Environment.NewLine}");
                 detailsBuilder.AppendLiteral($"</details>{Environment.NewLine}");
             }
+        }
+
+        var latestPullRequestInfo = "";
+        var lastedYearDirs = Directory.GetDirectories(outputsDir).OrderDescending(comparer).FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(lastedYearDirs))
+        {
+
+            var lastedYear = Path.GetFileName(lastedYearDirs);
+            var lastedMonthDirs = Directory.GetDirectories(lastedYearDirs!).OrderDescending(comparer).FirstOrDefault();
+            var lastedMonth = Path.GetFileName(lastedMonthDirs);
+            var lastedDayHtmlPath = Directory.GetFiles(lastedMonthDirs!, "*.html").OrderDescending(comparer).FirstOrDefault();
+
+            latestPullRequestInfo = $"""
+                            <h2>最新 PR</h2>
+                            <p><a href="./{lastedYear}/{lastedMonth}/{Path.GetFileName(lastedDayHtmlPath)}">{lastedYear}年{lastedMonth}月{Path.GetFileNameWithoutExtension(lastedDayHtmlPath)}日</a></p>
+                            <h2>過去の月別ダイジェスト</h2>
+                            """;
         }
 
         return GenerateTemplateHtml($"PR Digest.NET", "dotnet/runtimeにマージされたPull RequestをAIで日本語要約", latestPullRequestInfo + detailsBuilder.ToStringAndClear());
@@ -61,7 +66,7 @@ internal static class HtmlGenereator
       {contentHtml}
 """;
 
-        return GenerateTemplateHtml($"PR Digest.NET - Pull Request on {startTargetDate}", "dotnet/runtimeにマージされたPull RequestをAIで日本語要約", content);
+        return GenerateTemplateHtml($"Pull Request on {startTargetDate}", "dotnet/runtimeにマージされたPull RequestをAIで日本語要約", content);
     }
 
     private static string GenerateTemplateHtml(string title, string subTitle, string content)
@@ -90,7 +95,7 @@ internal static class HtmlGenereator
 
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
   <style>
-{{GenerateCssStyle("")}}
+{{GenerateCssStyle()}}
   </style>
 </head>
 <body>
@@ -130,7 +135,7 @@ internal static class HtmlGenereator
 
     }
 
-    private static string GenerateCssStyle(string additional)
+    private static string GenerateCssStyle()
     {
 
         return $$"""
@@ -276,6 +281,19 @@ internal static class HtmlGenereator
     ul p{
       margin: 0;
       padding: 0;
+    }
+
+    .daylist{
+        list-style-type: none;
+        display: grid;
+        grid-auto-flow: column;
+        grid-template-rows: repeat(12, auto);
+    }
+
+    .dayitem{
+        list-style: none;
+        display: flex;
+        align-items: center;
     }
     
     li {
@@ -438,6 +456,13 @@ internal static class HtmlGenereator
         word-break: break-word;
         overflow-wrap: anywhere;
       }
+
+    .daylist{
+        list-style-type: none;
+        display: grid;
+        grid-auto-flow: column;
+        grid-template-rows: repeat(16, auto);
+    }
 
       summary {
         padding: 1.2em 1em;

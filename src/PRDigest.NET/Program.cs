@@ -21,8 +21,8 @@ if (args.Length == 3 && args[2] == "-g")
 await CreateHtml(archivesDir, outputsDir);
 
 // end
-var EndTime = TimeProvider.System.GetTimestamp();
-Console.WriteLine($"Total elapsed time: {TimeProvider.System.GetElapsedTime(startTime, EndTime).TotalSeconds} seconds.");
+var endTime = TimeProvider.System.GetTimestamp();
+Console.WriteLine($"Total elapsed time: {TimeProvider.System.GetElapsedTime(startTime, endTime).TotalSeconds} seconds.");
 
 
 async ValueTask SummarizeCurrentPullRequestAndCreate(string archivesDir, string outputsDir)
@@ -239,7 +239,7 @@ async ValueTask CreateHtml(string archivesDir, string outputsDir)
     }
 
     // set up index.html
-    await File.WriteAllTextAsync(Path.Combine(outputsDir, "index.html"), HtmlGenereator.GenerateIndex(outputsDir));
+    await File.WriteAllTextAsync(Path.Combine(outputsDir, "index.html"), HtmlGenereator.GenerateIndex(archivesDir, outputsDir));
 }
 
 internal sealed class PullRequestInfo
