@@ -185,7 +185,7 @@ async ValueTask<string> SummarizePullRequestAsync(PullRequestInfo[] pullRequestI
             MessageCreateParams parameters = new()
             {
                 MaxTokens = 1024,
-                Model = Model.ClaudeHaiku4_5, // Claude Haiku 4.5
+                Model = Model.ClaudeHaiku4_5_20251001, // Claude Haiku 4.5
                 System = new MessageCreateParamsSystem([new() { Text = PromptGenerator.SystemPrompt }]),
                 Messages = [new() { Role = Role.User, Content = PromptGenerator.GeneratePrompt(pr) }],
             };
