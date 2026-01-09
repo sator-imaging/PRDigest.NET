@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Runtime.CompilerServices;
 
 namespace PRDigest.NET;
 
 internal static class PromptGenerator
 {
-    private const int MaxFileCount = 20;
+    private const int MaxFileCount = 30;
 
     public const string SystemPrompt = """
         あなたは.NET開発者向けのPull Request要約アシスタントです。
@@ -55,7 +52,6 @@ internal static class PromptGenerator
            - メモリ使用量、実行速度、スループットへの影響を具体的に記載
            - ベンチマーク結果や計測値がある場合は必ず含める
            - パフォーマンス改善の場合は、改善率や具体的な数値を記載
-           - パフォーマンス低下のリスクがある場合は、その理由と影響範囲を説明
 
         3. **セキュリティとバグ修正**
            - セキュリティ上の脆弱性修正の場合は、その重要度を明記
@@ -65,12 +61,19 @@ internal static class PromptGenerator
 
     public static string GeneratePrompt(PullRequestInfo info)
     {
+        // pull reqeust info
+        var body = info.PullRequest.Body;
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            body = "なし";
+        }
+
         // file changes info
         var files = info.Files;
-        var filesChanged = string.Join(Environment.NewLine,
-            files.Select(f => $"- {f.FileName} (+{f.Additions}/-{f.Deletions}, total: {f.Changes})")
-                .Append(files.Count > MaxFileCount ? $"- その他 {files.Count - MaxFileCount} files" : "")
-         );
+        var filesChanged = string.Join(Environment.NewLine, files
+            .Take(MaxFileCount)
+            .Select(f => $"- {f.FileName} (+{f.Additions}/-{f.Deletions}, total: {f.Changes})")
+            .Append(files.Count > MaxFileCount ? $"- その他 {files.Count - MaxFileCount} files" : ""));
 
         // reviewer info
         var reviews = info.Reviews;
@@ -85,31 +88,33 @@ internal static class PromptGenerator
             }
         }
 
-        // get latest 10 comments
-        var issueComment = info.IssueComments;
-        var latestComment = issueComment.Any() ? string.Join(Environment.NewLine,
-                issueComment
-                .Where(c => c.AuthorAssociation == "CONTRIBUTOR" || c.AuthorAssociation == "MEMBER")
-                .OrderByDescending(c => c.CreatedAt)
-                .Take(10)
-                .Select(c => $"[{c.CreatedAt:yyyy-MM-dd HH:mm}] by {c.User.Login}{Environment.NewLine}{c.Body}{Environment.NewLine}")) : "";
+        // latest copilot overview
+        var copilotOverview = info.Reviews.Where(r => r.User.Login == "copilot-pull-request-reviewer[bot]")
+            .OrderByDescending(r => r.SubmittedAt)
+            .FirstOrDefault();
+        var overviewText = copilotOverview != null ? copilotOverview.Body.Trim() : "";
+        if (string.IsNullOrWhiteSpace(overviewText))
+        {
+            overviewText = "なし";
+        }
 
         var prompt = $"""
 以下のdotnet/runtimeのPull Requestを要約してください。
+またできる限り、以下の情報以外の内容を推測して含めないようにしてください。
 
 Pull Request:
 - {info.PullRequest.Title} #{info.PullRequest.Number}
 - 作成者: {info.PullRequest.User.Login}
 - レビュワー: {reviewersBuilder.ToStringAndClear()}
 
-説明文:
-{info.PullRequest.Body}
+作成者による概要:
+{body}
+
+Copilotによる概要:
+{overviewText}
 
 変更ファイル:
 {filesChanged}
-
-Pull Requestに対する最新コメント（最大10件）:
-{latestComment}
 
 """;
         return prompt;

@@ -163,18 +163,23 @@ async ValueTask<PullRequestInfo[]> GetAllPullRequestInfoAsync(DateTimeOffset sta
 
 async ValueTask<string> SummarizePullRequestAsync(PullRequestInfo[] pullRequestInfos)
 {
-    // Generate HTML content for each pull request using Anthropic API.
+    var markdownlBuilder = new StringBuilder();
+    var tableOfContentsBuilder = new StringBuilder();
+    tableOfContentsBuilder.AppendLine("### 目次 {#table-of-contents}");
+
+    var index = 1;
+    var separator = Environment.NewLine + "---" + Environment.NewLine;
+    var totalInputTokens = 0L;
+    var totalInputTokensPerMinute = 0L;
+    var totalOutputTokens = 0L;
+    var totalOutputTokensPerMinute = 0L;
+
     try
     {
+        // Generate HTML content for each pull request using Anthropic API.
         // Configures ANTHROPIC_API_KEY.
         AnthropicClient anthropicClient = new();
 
-        var markdownlBuilder = new StringBuilder();
-        var tableOfContentsBuilder = new StringBuilder();
-        tableOfContentsBuilder.AppendLine("### 目次 {#table-of-contents}");
-
-        var index = 1;
-        var separator = Environment.NewLine + "---" + Environment.NewLine;
         foreach (var pr in pullRequestInfos)
         {
             MessageCreateParams parameters = new()
@@ -190,9 +195,10 @@ async ValueTask<string> SummarizePullRequestAsync(PullRequestInfo[] pullRequestI
                 {
                     Timeout = TimeSpan.FromMinutes(5),
                     MaxRetries = 3,
-                }
-                )
+                })
                 .Messages.Create(parameters);
+
+            Console.WriteLine($"[INFO] #{pr.Issue.Number} input-token:{message.Usage.InputTokens} output-token:{message.Usage.OutputTokens}");
 
             var llmOutput = "";
             foreach (var content in message.Content)
@@ -220,20 +226,32 @@ async ValueTask<string> SummarizePullRequestAsync(PullRequestInfo[] pullRequestI
 """;
             markdownlBuilder.AppendLine(prHeader + llmOutput);
             markdownlBuilder.Append(separator);
+
+            totalInputTokens += message.Usage.InputTokens;
+            totalInputTokensPerMinute += message.Usage.InputTokens;
+            totalOutputTokens += message.Usage.OutputTokens;
+            totalOutputTokensPerMinute += message.Usage.OutputTokens;
+
+            // Since input tokens are variable, wait if it exceeds 30,000 tokens per minute
+            if (totalInputTokensPerMinute >= 30000)
+            {
+                totalInputTokensPerMinute = 0;
+                await Task.Delay(1000 * 60); // wait for 1 minute
+            }
         }
-
-        return $"{tableOfContentsBuilder}{separator}{markdownlBuilder}";
     }
-    catch (AnthropicRateLimitException)
+    catch (AnthropicRateLimitException rle)
     {
-        Console.WriteLine("[ERROR] Anthropic API Rate limit exceeded.");
+        Console.WriteLine($"[ERROR] AnthropicRateLimitException: {rle.StatusCode}");
+        throw;
     }
-    catch (AnthropicBadRequestException)
+    catch (AnthropicBadRequestException bre)
     {
-        Console.WriteLine("[ERROR] Credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.");
+        Console.WriteLine($"[ERROR] AnthropicBadRequestException: {bre.StatusCode}");
+        throw;
     }
 
-    return "";
+    return $"{tableOfContentsBuilder}{separator}{markdownlBuilder}";
 }
 
 async ValueTask CreateHtml(string archivesDir, string outputsDir)
