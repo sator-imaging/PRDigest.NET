@@ -160,7 +160,7 @@ internal static class HtmlGenereator
     }
 
     :root {
-        interpolate-size: allow-keywords;
+      interpolate-size: allow-keywords;
     }
     
     body {
@@ -255,6 +255,7 @@ internal static class HtmlGenereator
       font-weight: bold;
       line-height: 1.5;
       margin: 32px 0 16px 0;
+      overflow-wrap: break-word;
       color: #1a1a1a;
     }
 
@@ -299,17 +300,17 @@ internal static class HtmlGenereator
       padding: 0;
     }
 
-    .daylist{
-        list-style-type: none;
-        display: grid;
-        grid-auto-flow: column;
-        grid-template-rows: repeat(12, auto);
+    .daylist {
+      list-style-type: none;
+      display: grid;
+      grid-auto-flow: column;
+      grid-template-rows: repeat(12, auto);
     }
 
-    .dayitem{
-        list-style: none;
-        display: flex;
-        align-items: center;
+    .dayitem {
+      list-style: none;
+      display: flex;
+      align-items: center;
     }
     
     li {
@@ -378,19 +379,19 @@ internal static class HtmlGenereator
     }
 
     #table-of-contents + ol li {
-        padding: 0;
-        margin: 0;
-        font-weight: bold;
+      padding: 0;
+      margin: 0;
+      font-weight: bold;
     }
 
     #table-of-contents + ol li a {
-        color: #000000;
-        font-weight: bold;
+      color: #000000;
+      font-weight: bold;
     }
 
     #table-of-contents + ol li a:hover {
-        color: #9ca3af;
-        text-decoration: none;
+      color: #9ca3af;
+      text-decoration: none;
     }
 
     footer {
@@ -473,12 +474,12 @@ internal static class HtmlGenereator
         overflow-wrap: anywhere;
       }
 
-    .daylist{
+      .daylist {
         list-style-type: none;
         display: grid;
         grid-auto-flow: column;
         grid-template-rows: repeat(16, auto);
-    }
+      }
 
       summary {
         padding: 1.2em 1em;
@@ -531,7 +532,7 @@ internal static class HtmlGenereator
       }
 
       #table-of-contents + ol li a {
-          color: #d1d5db;
+        color: #d1d5db;
       }
     
       code {
