@@ -209,7 +209,7 @@ async ValueTask<string> SummarizePullRequestAsync(PullRequestInfo[] pullRequestI
                 }
             }
 
-            tableOfContentsBuilder.AppendLine($"{index++}. [#{pr.Issue.Number} {pr.Issue.Title}](#{pr.Issue.Number})");
+            tableOfContentsBuilder.AppendLine($"{index++}. [#{pr.Issue.Number} {TitleHelper.EscapedTitle(pr.Issue.Title)}](#{pr.Issue.Number})");
 
             var labels = pr.PullRequest.Labels;
             var labelText = labels.Count > 0 ?
