@@ -9,10 +9,11 @@ internal static class PullReqeustAnalayzer
     public static AnalayzerResult Analayze(MarkdownDocument document)
     {
         var tableOfContents = false;
-        var prCount = 0;
+        var pullRequestCount = 0;
         HeadingBlock? nextPrNumber = null;
         HashSet<string>? prNumberTable = null;
         Dictionary<string, List<HeadingBlock>>? labelTable = new();
+        Dictionary<string, string>? labelColorMap = new();
 
         foreach (var block in document)
         {
@@ -43,13 +44,52 @@ internal static class PullReqeustAnalayzer
                         prList.Add(nextPrNumber);
                     }
 
+                    // Extract label colors from HtmlInline spans
+                    if (labelBlock is not null)
+                    {
+                        int backgroundColorLength = 17; // "background-color:".Length
+                        foreach (var htmlInline in labelBlock.Descendants<HtmlInline>())
+                        {
+                            var tag = htmlInline.Tag;
+                            if (tag is null) continue;
+
+                            var tagSpan = tag.AsSpan();
+                            if (tagSpan.IndexOf("background-color") > -1)
+                            {
+                                var bgStart = tagSpan.IndexOf("background-color:", StringComparison.Ordinal);
+                                if (bgStart < 0) continue;
+
+                                bgStart += backgroundColorLength;
+                                var bgEnd = tagSpan.Slice(bgStart).IndexOf(';');
+                                if (bgEnd <= 0) continue;
+
+                                var color = tagSpan[bgStart..(bgStart + bgEnd)].Trim();
+                                // Find the label text: the next sibling LiteralInline
+                                var nextSibling = htmlInline.NextSibling;
+                                while (nextSibling is not null)
+                                {
+                                    if (nextSibling is LiteralInline literal)
+                                    {
+                                        var labelName = literal.Content.ToString().Trim();
+                                        if (!string.IsNullOrWhiteSpace(labelName) && !labelName.Contains("ラベル"))
+                                        {
+                                            labelColorMap.TryAdd(labelName, color.ToString());
+                                        }
+                                        break;
+                                    }
+                                    nextSibling = nextSibling.NextSibling;
+                                }
+                            }
+                        }
+                    }
+
                     nextPrNumber = null;
                 }
                 else if (!tableOfContents)
                 {
                     foreach (var listItemBlock in listBlock.Descendants<ListItemBlock>())
                     {
-                        prCount++;
+                        pullRequestCount++;
                         var prNumber = listItemBlock.Descendants<LinkInline>().FirstOrDefault();
                         if (prNumber is not null)
                         {
@@ -65,8 +105,9 @@ internal static class PullReqeustAnalayzer
 
         return new AnalayzerResult
         {
-            PullRequestCount = prCount,
-            LabelInfo = labelTable
+            PullRequestCount = pullRequestCount,
+            LabelInfo = labelTable,
+            LabelColorMap = labelColorMap
         };
     }
 
@@ -74,6 +115,7 @@ internal static class PullReqeustAnalayzer
     {
         public int PullRequestCount;
         public Dictionary<string, List<HeadingBlock>>? LabelInfo;
+        public Dictionary<string, string>? LabelColorMap;
         public readonly int LabelCount => LabelInfo?.Count ?? 0;
     }
 }

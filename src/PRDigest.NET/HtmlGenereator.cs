@@ -4,7 +4,6 @@ using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace PRDigest.NET;
 
@@ -92,18 +91,127 @@ internal static class HtmlGenereator
         var contentHtml = Markdown.ToHtml(document, Pipeline);
         var analyzerResult = PullReqeustAnalayzer.Analayze(document);
 
+        // Split contentHtml into TOC part and PR details part
+        // The TOC ends after </ol>, then a <hr /> separates it from PR details
+        var contentSpan = contentHtml.AsSpan();
+        var tocEndIndex = contentSpan.IndexOf("</ol>", StringComparison.Ordinal);
+        string tocHtml;
+        string prDetailsHtml;
+
+        if (tocEndIndex >= 0)
+        {
+            tocEndIndex += "</ol>".Length;
+            var hrIndex = contentSpan[tocEndIndex..].IndexOf("<hr", StringComparison.Ordinal);
+            if (hrIndex >= 0)
+            {
+                tocHtml = contentSpan[..tocEndIndex].ToString();
+                prDetailsHtml = contentSpan[hrIndex..].ToString();
+            }
+            else
+            {
+                tocHtml = contentSpan[..tocEndIndex].ToString();
+                prDetailsHtml = contentSpan[tocEndIndex..].ToString();
+            }
+        }
+        else
+        {
+            // Fallback: no split possible
+            tocHtml = contentHtml;
+            prDetailsHtml = "";
+        }
+
+        var labelViewHtml = GenerateLabelViewHtml(document, analyzerResult);
+
         var content = $"""
       <h2>注意点</h2>
       <p>このページは、<a href="https://github.com/dotnet/runtime">dotnet/runtime</a>リポジトリにマージされたPull Requestを自動的に収集し、その内容をAIが要約した内容を表示しています。そのため、必ずしも正確な要約ではない場合があります。</p>
       <hr>
-      {contentHtml}
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="list">一覧</button>
+        <button class="view-tab" data-view="label">ラベル別</button>
+      </div>
+      <div id="list-view" class="view-panel">
+        {tocHtml}
+      </div>
+      <div id="label-view" class="view-panel" style="display:none">
+        {labelViewHtml}
+      </div>
+      {prDetailsHtml}
 """;
 
-        return GenerateTemplateHtml($"Pull Request on {startTargetDate}", "dotnet/runtimeにマージされたPull RequestをAIで日本語要約", content);
+        return GenerateTemplateHtml($"Pull Request on {startTargetDate}", "dotnet/runtimeにマージされたPull RequestをAIで日本語要約", content, includeViewScript: true);
     }
 
-    private static string GenerateTemplateHtml(string title, string subTitle, string content)
+    private static string GenerateLabelViewHtml(MarkdownDocument document, PullReqeustAnalayzer.AnalayzerResult analyzerResult)
     {
+        if (analyzerResult.LabelInfo is null || analyzerResult.LabelCount == 0)
+            return "<p>ラベル情報がありません。</p>";
+
+        var builder = new DefaultInterpolatedStringHandler(0, 0);
+        builder.AppendLiteral($"<h3>ラベル別PR一覧</h3>{Environment.NewLine}");
+
+        foreach (var (labelName, headingBlocks) in analyzerResult.LabelInfo.OrderByDescending(kv => kv.Value.Count))
+        {
+            var colorStyle = "";
+            if (analyzerResult.LabelColorMap is not null && analyzerResult.LabelColorMap.TryGetValue(labelName, out var color))
+            {
+                colorStyle = $" style=\"background-color: {color}; color: #000000; display: inline-block; padding: 0 7px; font-size: 12px; font-weight: 500; line-height: 18px; border-radius: 2em; border: 1px solid transparent;\"";
+            }
+
+            builder.AppendLiteral($"<details class=\"label-group\">{Environment.NewLine}");
+            builder.AppendLiteral($"  <summary class=\"label-group-summary\"><span{colorStyle}>{labelName}</span> <span class=\"label-pr-count\">({headingBlocks.Count} PRs)</span></summary>{Environment.NewLine}");
+            builder.AppendLiteral($"  <ol class=\"label-pr-list\">{Environment.NewLine}");
+
+            foreach (var heading in headingBlocks)
+            {
+                // Extract PR number and title from HeadingBlock inlines
+                var pullRequestNumber = "";
+                var titleText = "";
+
+                var inline = heading.Inline?.FirstChild;
+                while (inline is not null)
+                {
+                    if (inline is LinkInline linkInline)
+                    {
+                        // The link text contains the PR number like "#124237"
+                        var linkChild = linkInline.FirstChild;
+                        while (linkChild is not null)
+                        {
+                            if (linkChild is LiteralInline lit)
+                            {
+                                pullRequestNumber = lit.Content.ToString();
+                            }
+                            linkChild = linkChild.NextSibling;
+                        }
+                    }
+                    else if (inline is LiteralInline literal)
+                    {
+                        titleText += literal.Content.ToString();
+                    }
+                    else if (inline is CodeInline codeInline)
+                    {
+                        titleText += codeInline.Content;
+                    }
+                    inline = inline.NextSibling;
+                }
+
+                // Derive anchor ID from PR number (remove '#')
+                var anchorId = pullRequestNumber.TrimStart('#');
+                var displayText = $"{pullRequestNumber} {titleText.Trim()}";
+
+                builder.AppendLiteral($"    <li><a href=\"#{anchorId}\">{System.Net.WebUtility.HtmlEncode(displayText)}</a></li>{Environment.NewLine}");
+            }
+
+            builder.AppendLiteral($"  </ol>{Environment.NewLine}");
+            builder.AppendLiteral($"</details>{Environment.NewLine}");
+        }
+
+        return builder.ToStringAndClear();
+    }
+
+    private static string GenerateTemplateHtml(string title, string subTitle, string content, bool includeViewScript = false)
+    {
+        var viewScript = includeViewScript ? GenerateViewScript() : "";
         return $$"""
 <!DOCTYPE html>
 <html lang="ja">
@@ -180,10 +288,32 @@ internal static class HtmlGenereator
     <p>Copyright &copy; 2025 prozolic</p>
   </div>
 </footer>
+{{viewScript}}
 </body>
 </html>
 """;
 
+    }
+
+    private static string GenerateViewScript()
+    {
+        return """
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var tabs = document.querySelectorAll('.view-tab');
+  var panels = document.querySelectorAll('.view-panel');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var view = this.getAttribute('data-view');
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      panels.forEach(function(p) { p.style.display = 'none'; });
+      document.getElementById(view + '-view').style.display = '';
+    });
+  });
+});
+</script>
+""";
     }
 
     private static string GenerateCssStyle()
@@ -473,6 +603,66 @@ internal static class HtmlGenereator
       margin-top: 4px;
     }
 
+    .view-tabs {
+      display: flex;
+      border-bottom: 2px solid #e5e7eb;
+      margin: 24px 0 16px 0;
+    }
+
+    .view-tab {
+      padding: 10px 24px;
+      background: transparent;
+      color: #6b7280;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      cursor: pointer;
+      transition: color 0.15s, border-bottom-color 0.15s;
+    }
+
+    .view-tab:hover {
+      color: #2563eb;
+    }
+
+    .view-tab.active {
+      color: #2563eb;
+      border-bottom-color: #2563eb;
+    }
+
+    .label-group {
+      margin: 0 0 8px 0;
+    }
+
+    .label-group-summary {
+      align-items: center;
+      gap: 8px;
+    }
+
+    .label-pr-count {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: normal;
+    }
+
+    .label-pr-list {
+      padding: 8px 16px 8px 32px;
+    }
+
+    .label-pr-list li {
+      padding: 2px 0;
+    }
+
+    .label-pr-list li a {
+      color: #2563eb;
+      text-decoration: underline;
+    }
+
+    .label-pr-list li a:hover {
+      color: #1d4ed8;
+    }
+
     @media (min-width: 1200px) {
       .container {
         max-width: 1140px;
@@ -555,6 +745,15 @@ internal static class HtmlGenereator
         font-size: 28px;
       }
 
+      .view-tab {
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+
+      .label-pr-list {
+        padding: 8px 8px 8px 24px;
+      }
+
     }
 
     @media (prefers-color-scheme: dark) {
@@ -625,6 +824,40 @@ internal static class HtmlGenereator
 
       .stat-label {
         color: #9ca3af;
+      }
+
+      .view-tabs {
+        border-bottom-color: #374151;
+      }
+
+      .view-tab {
+        color: #9ca3af;
+      }
+
+      .view-tab:hover,
+      .view-tab.active {
+        color: #60a5fa;
+        border-bottom-color: #60a5fa;
+      }
+
+      .label-group {
+        background-color: #1f2937;
+      }
+
+      .label-group-summary {
+        background-color: #374151;
+      }
+
+      .label-pr-count {
+        color: #9ca3af;
+      }
+
+      .label-pr-list li a {
+        color: #60a5fa;
+      }
+
+      .label-pr-list li a:hover {
+        color: #93c5fd;
       }
     }
 """;
