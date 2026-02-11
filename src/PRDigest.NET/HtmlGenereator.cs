@@ -1,13 +1,20 @@
 ﻿using Markdig;
 using Markdig.Extensions.AutoIdentifiers;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace PRDigest.NET;
 
 internal static class HtmlGenereator
 {
     private static readonly StringComparer NumericOrderingComparer = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering);
+    private static MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
+        .UseAdvancedExtensions()
+        .Build();
 
     public static string GenerateIndex(string archivesDir, string outputsDir)
     {
@@ -44,9 +51,34 @@ internal static class HtmlGenereator
             var lastedMonth = Path.GetFileName(lastedMonthDirs);
             var lastedDayHtmlPath = Directory.GetFiles(lastedMonthDirs!, "*.html").OrderDescending(comparer).FirstOrDefault();
 
+            var lastedDay = Path.GetFileNameWithoutExtension(lastedDayHtmlPath);
+            var latestMarkdownPath = Path.Combine(archivesDir, lastedYear!, lastedMonth!, $"{lastedDay}.md");
+
+            var statsHtml = "";
+            if (File.Exists(latestMarkdownPath))
+            {
+                var markdownContent = File.ReadAllText(latestMarkdownPath);
+                var document = Markdown.Parse(markdownContent, Pipeline);
+                var analyzerResult = PullReqeustAnalayzer.Analayze(document);
+
+                statsHtml = $"""
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <div class="stat-value">{analyzerResult.PullRequestCount}</div>
+                                        <div class="stat-label">マージされたPR</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-value">{analyzerResult.LabelCount}</div>
+                                        <div class="stat-label">ラベル種類</div>
+                                    </div>
+                                </div>
+                """;
+            }
+
             latestPullRequestInfo = $"""
                             <h2>最新のダイジェスト</h2>
                             <p><a href="./{lastedYear}/{lastedMonth}/{Path.GetFileName(lastedDayHtmlPath)}">{lastedYear}年{lastedMonth}月{Path.GetFileNameWithoutExtension(lastedDayHtmlPath)}日</a></p>
+                            {statsHtml}
                             <h2>過去の月別ダイジェスト</h2>
                             """;
         }
@@ -56,11 +88,9 @@ internal static class HtmlGenereator
 
     public static string GenerateHtmlFromMarkdown(string startTargetDate, string markdownContent)
     {
-        var pipeline = new MarkdownPipelineBuilder()
-            .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
-            .UseAdvancedExtensions()
-            .Build();
-        var contentHtml = Markdown.ToHtml(markdownContent, pipeline);
+        var document = Markdown.Parse(markdownContent, Pipeline);
+        var contentHtml = Markdown.ToHtml(document, Pipeline);
+        var analyzerResult = PullReqeustAnalayzer.Analayze(document);
 
         var content = $"""
       <h2>注意点</h2>
@@ -113,6 +143,7 @@ internal static class HtmlGenereator
   <link rel="icon" type="image/png" sizes="192x192" href="https://prozolic.github.io/PRDigest.NET/icon-512.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="https://prozolic.github.io/PRDigest.NET/icon-512.png" />
 
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
   <style>
 {{GenerateCssStyle()}}
@@ -169,7 +200,7 @@ internal static class HtmlGenereator
     body {
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
       font-size: 16px;
       line-height: 1.8;
       color: #333;
@@ -324,7 +355,7 @@ internal static class HtmlGenereator
     }
 
     code {
-      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
       font-size: 14px;
       background: #f3f4f6;
       padding: 2px 6px;
@@ -412,6 +443,35 @@ internal static class HtmlGenereator
       color: #9ca3af;
     }
 
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin: 16px 0 24px 0;
+    }
+
+    .stat-card {
+      background: #f0f6ff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.2;
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
     @media (min-width: 1200px) {
       .container {
         max-width: 1140px;
@@ -490,8 +550,12 @@ internal static class HtmlGenereator
         font-size: 16px;
       }
 
+      .stat-value {
+        font-size: 28px;
+      }
+
     }
-    
+
     @media (prefers-color-scheme: dark) {
       body {
         background-color: #111827;
@@ -547,6 +611,19 @@ internal static class HtmlGenereator
       pre {
         background: #111827;
         border-color: #374151;
+      }
+
+      .stat-card {
+        background: #374151;
+        border-color: #4b5563;
+      }
+
+      .stat-value {
+        color: #f9fafb;
+      }
+
+      .stat-label {
+        color: #9ca3af;
       }
     }
 """;
