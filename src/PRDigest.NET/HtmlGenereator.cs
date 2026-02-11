@@ -420,13 +420,14 @@ internal static class HtmlGenereator
     }
 
     #table-of-contents + ol li a {
-      color: #000000;
+      color: #2563eb;
       font-weight: bold;
+      text-decoration: underline;
     }
 
     #table-of-contents + ol li a:hover {
-      color: #9ca3af;
-      text-decoration: none;
+      color: #1d4ed8;
+      text-decoration: underline;
     }
 
     footer {
@@ -600,7 +601,7 @@ internal static class HtmlGenereator
       }
 
       #table-of-contents + ol li a {
-        color: #d1d5db;
+        color: #60a5fa;
       }
     
       code {
