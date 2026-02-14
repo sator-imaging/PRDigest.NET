@@ -238,6 +238,15 @@ internal static class HtmlGenereator
             else if (inline is LiteralInline literal)
             {
                 titleText += literal.Content.ToString();
+
+                if (literal.NextSibling is LinkDelimiterInline linkDelimiterInline)
+                {
+                    titleText += linkDelimiterInline.ToLiteral();
+                    foreach (var linkChild in linkDelimiterInline.OfType<LiteralInline>())
+                    {
+                        titleText += linkChild.Content.ToString();
+                    }
+                }
             }
             else if (inline is CodeInline codeInline)
             {
