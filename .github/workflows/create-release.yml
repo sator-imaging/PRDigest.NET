@@ -23,7 +23,7 @@ jobs:
       - name: Generate tag name
         id: tag
         run: |
-          TAG_NAME="archives-$(date +'%Y%m%d')"
+          TAG_NAME="archives-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Detect changed archive file
