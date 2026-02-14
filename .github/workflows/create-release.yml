@@ -32,7 +32,7 @@ jobs:
           echo "Changed files:"
           git diff-tree --no-commit-id --name-only -r HEAD
 
-          FILE=$(git diff-tree --no-commit-id --name-only -r HEAD | grep "^archives/.*$" | head -n 1)
+          FILE=$(git diff-tree --no-commit-id --name-only -r HEAD | grep "^archives/.*\.md$" | head -n 1)
 
           if [ -z "$FILE" ]; then
             echo "Error: No archives changes detected"
