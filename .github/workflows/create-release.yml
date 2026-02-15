@@ -6,10 +6,7 @@ on:
       - main
     paths:
       - 'archives/**/*.md'
-  workflow_run:
-    workflows: [collect dotnet-runtime PRs]
-    types:
-      - completed
+  workflow_call:
 
 permissions:
   contents: write
