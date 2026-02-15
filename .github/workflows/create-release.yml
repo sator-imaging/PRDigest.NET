@@ -1,11 +1,11 @@
 name: Create Release from archives
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'archives/**/*.md'
+  #push:
+  #  branches:
+  #    - main
+  #  paths:
+  #    - 'archives/**/*.md'
   workflow_call:
 
 permissions:
