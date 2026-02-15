@@ -6,11 +6,6 @@ on:
       - main
     paths:
       - 'archives/**/*.md'
-  # NOTE: push with GITHUB_TOKEN won't invoke the push event
-  workflow_run:
-    workflows: [collect dotnet-runtime PRs]
-    types: [completed]
-
   workflow_call:
 
 permissions:
